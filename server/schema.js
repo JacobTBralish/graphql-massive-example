@@ -3,7 +3,7 @@ const { GraphQLBoolean, GraphQLString, GraphQLObjectType, GraphQLSchema, GraphQL
 const massive = require('massive')
 require('dotenv').config();
 
-let db;
+var db;
 massive(process.env.CONNECTION_STRING).then((database)=>{
     console.log('connected to database')
     db = database
@@ -20,23 +20,39 @@ const UserType = new GraphQLObjectType({
     }
 })
 
+const AssessmentType = new GraphQLObjectType({
+    name: "Assessment",
+    fields: () => {
+        return {
+            assessment_name: {type: GraphQLString },
+            passed: {type: GraphQLBoolean },
+            notes: {type: GraphQLString}
+        }
+    }
+})
+
 const StudentType = new GraphQLObjectType({
     name: "Student",
     fields: () => {
         return {
             id: { type: GraphQLInt },
             name: {type: GraphQLString },
-            cohort: {type: GraphQLString },
-            fun: {
-                type: GraphQLString, 
-                resolve: ()=>{
-                    return 'hello world'
-                }    
+            email: {type: GraphQLString },
+            favoritePokemon: {
+                type: GraphQLString,
+                resolve: (student) => {
+                    return axios.get(`https://pokeapi.co/api/v2/pokemon/${student.id}`).then(response => response.data.forms[0].name)
+                }
             },
-            cool: {
-                type: GraphQLInt,
-                resolve: () => {
-                    return 3
+            cohort: {type: GraphQLString },
+            assessment: {
+                type: GraphQLList(AssessmentType),
+                args: {assessId: {type: GraphQLInt }} ,
+                resolve: (student, assessId) => {
+                    console.log(student.id, assessId.assessId)
+                    return db.get_student_scores([student.id, assessId.assessId]).then(response => {
+                        return response
+                    })
                 }
             }
         }
@@ -57,7 +73,6 @@ const Query = new GraphQLObjectType({
             students: {
                 type: new GraphQLList(StudentType),
                 resolve: () => {
-                    console.log('hit')
                     return db.query('SELECT * FROM students')
                 }
             },
